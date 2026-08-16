@@ -3,39 +3,31 @@ name: Web to APK
 on:
   workflow_dispatch:
     inputs:
-      url:
-        description: 'URL website yang akan diubah menjadi APK'
+      web_url:
+        description: 'URL website'
         required: true
         type: string
-        default: 'https://example.com'
       app_name:
         description: 'Nama aplikasi'
         required: true
         type: string
-        default: 'MyApp'
-      app_id:
-        description: 'Package ID (contoh: com.example.app)'
-        required: true
-        type: string
-        default: 'com.example.app'
       icon_url:
         description: 'URL icon (opsional)'
         required: false
         type: string
         default: ''
 
+permissions:
+  contents: write
+
 jobs:
-  build-apk:
+  build-and-release:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install web2apk
         run: npm install -g web2apk
@@ -43,14 +35,17 @@ jobs:
       - name: Generate APK
         run: |
           web2apk generate \
-            --url "${{ github.event.inputs.url }}" \
+            --url "${{ github.event.inputs.web_url }}" \
             --name "${{ github.event.inputs.app_name }}" \
-            --id "${{ github.event.inputs.app_id }}" \
             ${{ github.event.inputs.icon_url && format('--icon {0}', github.event.inputs.icon_url) || '' }} \
             --output ./app.apk
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Upload APK ke Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: web2apk-${{ github.event.inputs.app_name }}
-          path: ./app.apk
+          files: ./app.apk
+          tag_name: web-${{ github.run_number }}
+          name: "Web2APK ${{ github.event.inputs.app_name }}"
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
