@@ -1,38 +1,41 @@
-name: Build APK from Source
+name: Build from ZIP
 
 on:
   workflow_dispatch:
     inputs:
-      build_type:
-        description: 'Jenis build (debug / release)'
+      zip_url:
+        description: 'URL file ZIP (source code)'
         required: true
-        default: 'debug'
+        type: string
+      tag:
+        description: 'Tag untuk release (misal v1.0.0)'
+        required: true
+        type: string
+      build_type:
+        description: 'Jenis build (debug/release)'
+        required: true
+        default: 'release'
         type: choice
         options:
           - debug
           - release
-      branch:
-        description: 'Branch yang akan di-build'
-        required: true
-        default: 'main'
-        type: string
 
-# IZIN RELEASE – TAMBAHKAN INI!
 permissions:
-  contents: write
+  contents: write   # izin untuk membuat release
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout kode
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.branch }}
+      - name: Download source code ZIP
+        run: |
+          curl -L -o source.zip "${{ github.event.inputs.zip_url }}"
+          unzip source.zip -d source
+          # Asumsikan ZIP berisi satu folder, pindahkan isinya ke root
+          cd source && mv * ../ && cd ..
+          rm -rf source source.zip
 
-      # === Untuk Android Native (Gradle) ===
-      - name: Set up JDK 17
+      - name: Set up JDK 17 (untuk Android)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -44,20 +47,12 @@ jobs:
       - name: Build APK
         run: ./gradlew assemble${{ github.event.inputs.build_type == 'debug' && 'Debug' || 'Release' }}
 
-      # === UPLOAD ARTIFACT SEMENTARA ===
-      - name: Upload APK sebagai artifact (sementara)
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-${{ github.event.inputs.build_type }}
-          path: app/build/outputs/apk/*/*.apk
-
-      # === BUAT RELEASE DAN UPLOAD APK ===
-      - name: Create Release & Upload APK
+      - name: Upload APK ke Release
         uses: softprops/action-gh-release@v2
         with:
           files: app/build/outputs/apk/*/*.apk
-          tag_name: build-${{ github.run_number }}
-          name: "Build #${{ github.run_number }} (${{ github.event.inputs.build_type }})"
+          tag_name: ${{ github.event.inputs.tag }}
+          name: "Build ${{ github.event.inputs.tag }}"
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}   # <-- Ganti sesuai nama secret token kamu
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # token bawaan (sudah cukup)
