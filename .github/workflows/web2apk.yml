@@ -1,0 +1,108 @@
+name: 🚀 Build APK dari ZIP (Flutter) atau URL
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_type:
+        description: 'Pilih sumber build'
+        required: true
+        default: 'zip'
+        type: choice
+        options:
+          - zip
+          - url
+      zip_url:
+        description: '🔗 Link download ZIP (isi dengan source Flutter, wajib ada pubspec.yaml)'
+        required: false
+        type: string
+      website_url:
+        description: '🔗 Link Website (jika pilih URL)'
+        required: false
+        type: string
+      app_name:
+        description: '📱 Nama Aplikasi'
+        required: true
+        default: 'My Flutter App'
+      package_name:
+        description: '📦 Package ID (contoh: com.nama.app)'
+        required: true
+        default: 'com.example.myapp'
+      version_code:
+        description: '🔢 Versi APK (angka, contoh: 1)'
+        required: true
+        default: '1'
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      # ---------- KASUS 1: BUILD DARI ZIP (FLUTTER SOURCE) ----------
+      - name: Setup & Build dari ZIP (Flutter)
+        if: github.event.inputs.source_type == 'zip'
+        run: |
+          # Download ZIP
+          wget -O source.zip "${{ github.event.inputs.zip_url }}"
+          
+          # Ekstrak ke folder 'flutter_app'
+          mkdir flutter_app
+          unzip source.zip -d ./flutter_app
+          
+          # Cek apakah pubspec.yaml ada (validasi)
+          if [ ! -f ./flutter_app/pubspec.yaml ]; then
+            echo "❌ ERROR: pubspec.yaml tidak ditemukan! ZIP ini bukan project Flutter."
+            exit 1
+          fi
+          
+          # Setup Flutter
+          git clone https://github.com/flutter/flutter.git --depth 1 -b stable /opt/flutter
+          export PATH="/opt/flutter/bin:$PATH"
+          
+          # Build APK
+          cd flutter_app
+          flutter pub get
+          flutter build apk --release
+          
+          # Pindahkan hasil APK ke root agar mudah di-upload
+          cd ..
+          cp ./flutter_app/build/app/outputs/flutter-apk/app-release.apk ./app.apk
+          
+      # ---------- KASUS 2: BUILD DARI URL (WEBSITE) ----------
+      - name: Setup & Build dari URL (Web2APK)
+        if: github.event.inputs.source_type == 'url'
+        run: |
+          # Install Node.js dan web2apk
+          curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+          npm install -g @ducanh2912/web2apk
+          
+          # Build APK dari URL
+          web2apk build \
+            --url "${{ github.event.inputs.website_url }}" \
+            --output ./app.apk \
+            --name "${{ github.event.inputs.app_name }}" \
+            --package "${{ github.event.inputs.package_name }}" \
+            --version "${{ github.event.inputs.version_code }}"
+
+      # ---------- UPLOAD APK KE RELEASE ----------
+      - name: Buat Release dan Upload APK
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: ./app.apk
+          tag: v1.${{ github.event.inputs.version_code }}
+          name: "📲 ${{ github.event.inputs.app_name }} v1.${{ github.event.inputs.version_code }}"
+          allowUpdates: true
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---------- KIRIM LINK KE USER ----------
+      - name: Tampilkan Link Download di Summary
+        run: |
+          echo "## ✅ APK Berhasil Dibuat!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📥 **Download APK:**" >> $GITHUB_STEP_SUMMARY
+          echo "${{ github.server_url }}/${{ github.repository }}/releases/tag/v1.${{ github.event.inputs.version_code }}" >> $GITHUB_STEP_SUMMARY
