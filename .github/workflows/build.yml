@@ -55,4 +55,4 @@ jobs:
           name: "Build ${{ github.event.inputs.tag }}"
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # token bawaan (sudah cukup)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
