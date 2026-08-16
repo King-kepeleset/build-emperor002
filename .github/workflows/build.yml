@@ -1,0 +1,36 @@
+name: Build Flutter APK (Otomatis)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Biar bisa bikin release
+    
+    steps:
+      - name: Checkout kode Flutter
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0' # Bisa ganti versi terbaru
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK Release
+        run: flutter build apk --release
+
+      - name: Buat Release & Upload APK
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: build/app/outputs/flutter-apk/app-release.apk
+          tag: v1.0.${{ github.run_number }}
+          name: "APK Build v1.0.${{ github.run_number }}"
+          allowUpdates: true
+          token: ${{ secrets.GITHUB_TOKEN }}
